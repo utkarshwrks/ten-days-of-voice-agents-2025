@@ -1,0 +1,9 @@
+{
+  "drinkType": "coffee",
+  "size": "medium",
+  "milk": "oat milk",
+  "extras": [
+    "caramel"
+  ],
+  "name": "Utkrishka"
+}
