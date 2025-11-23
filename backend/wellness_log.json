@@ -1,0 +1,24 @@
+[
+  {
+    "date": "2025-11-23T22:35:32.721185",
+    "mood": "tired",
+    "energy_level": "medium to low",
+    "objectives": [
+      "finish work report",
+      "take a short walk",
+      "clean my desk"
+    ],
+    "summary": "User is feeling tired with medium to low energy after a rough night. Objectives for the day are to finish a work report, take a short walk, and clean their desk."
+  },
+  {
+    "date": "2025-11-23T22:39:23.581618",
+    "mood": "better",
+    "energy_level": "more energized",
+    "objectives": [
+      "finish report",
+      "do some exercise",
+      "connect with friends"
+    ],
+    "summary": "User is feeling better and more energized today. Objectives are to finish a report, do some exercise, and connect with friends."
+  }
+]
