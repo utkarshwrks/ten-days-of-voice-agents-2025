@@ -1,12 +1,10 @@
 import logging
 import os
 import json
-import datetime
-from typing import Optional, List
+from typing import List
 from pathlib import Path
 
 from dotenv import load_dotenv
-from livekit import rtc
 from livekit.agents import (
     Agent,
     AgentSession,
@@ -29,212 +27,144 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
-# JSON file for data persistence
-WELLNESS_LOG_FILE = "wellness_log.json"
+# Use absolute path for Windows
+COURSE_CONTENT_FILE = r"D:\MURFAI\ten-days-of-voice-agents-2025\shared-data\day4_tutor_content.json"
 
-class WellnessCompanion(Agent):
+class ActiveRecallCoach(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="""
-You are a supportive, realistic, and grounded health and wellness companion. Your role is to provide daily check-ins that are encouraging but practical.
+You are an Active Recall Coach that helps users learn through teaching. You have three learning modes:
 
-DAILY CHECK-IN WORKFLOW:
-1. GREETING & MOOD CHECK:
-   - Start with a warm, friendly greeting
-   - Ask about their current mood and energy level
-   - Examples: "How are you feeling today?", "What's your energy like?", "Anything on your mind right now?"
+LEARNING MODES:
+1. LEARN MODE (Voice: "Matthew"): Explain concepts clearly and concisely using the course content.
+2. QUIZ MODE (Voice: "Alicia"): Ask questions to test understanding using sample questions.
+3. TEACH_BACK MODE (Voice: "Ken"): Ask users to explain concepts back and provide basic qualitative feedback.
 
-2. DAILY INTENTIONS:
-   - Ask about 1-3 practical goals for the day
-   - Examples: "What are 1-3 things you'd like to accomplish today?", "Is there anything you want to do for yourself today?"
-   - Keep goals simple and achievable
+HOW TO RESPOND:
+- Always start by checking the current mode and available concepts
+- In LEARN mode: Use the concept summary to explain clearly
+- In QUIZ mode: Use the sample_question to test understanding  
+- In TEACH_BACK mode: Ask the user to explain the concept back to you
+- Always allow mode switching when requested
+- Be encouraging and educational
 
-3. SUPPORTIVE REFLECTION:
-   - Offer simple, realistic advice or reflections
-   - Suggestions should be small, actionable, and non-medical
-   - Examples: "Breaking large tasks into smaller steps can help", "Remember to take short breaks", "A 5-minute walk might help clear your mind"
-
-4. RECAP & CLOSE:
-   - Summarize today's mood and main objectives
-   - Confirm with: "Does this sound right to you?"
-   - End with an encouraging note
-
-IMPORTANT RULES:
-- NEVER provide medical advice or diagnosis
-- Keep responses supportive but realistic
-- Reference previous check-ins when relevant
-- Store all check-in data using the save_checkin tool
-- Use load_previous_checkins to get historical data
-- Keep conversations brief and focused (3-5 minutes max)
+Use your tools to load content and switch modes as needed.
 """
         )
+        self.current_mode = "learn"
+        self.concepts = self._load_concepts()
+        logger.info(f"Loaded {len(self.concepts)} concepts")
+
+    def _load_concepts(self):
+        """Load concepts on initialization"""
+        try:
+            logger.info(f"Looking for course content at: {COURSE_CONTENT_FILE}")
+            
+            if os.path.exists(COURSE_CONTENT_FILE):
+                with open(COURSE_CONTENT_FILE, 'r', encoding='utf-8') as f:
+                    content = json.load(f)
+                logger.info(f"Successfully loaded {len(content)} concepts")
+                return content
+            else:
+                logger.error(f"File not found: {COURSE_CONTENT_FILE}")
+                # Try relative path as fallback
+                relative_path = "./shared-data/day4_tutor_content.json"
+                if os.path.exists(relative_path):
+                    with open(relative_path, 'r', encoding='utf-8') as f:
+                        content = json.load(f)
+                    logger.info(f"Loaded from relative path: {len(content)} concepts")
+                    return content
+                return []
+        except Exception as e:
+            logger.error(f"Error loading concepts: {e}")
+            return []
 
     @function_tool()
-    async def save_checkin(
-        self,
-        context: RunContext,
-        mood: str,
-        energy_level: str,
-        objectives: List[str],
-        summary: str = ""
-    ) -> str:
-        """
-        Save today's wellness check-in to the JSON log file.
+    async def load_course_content(self, context: RunContext) -> str:
+        """Load and display available course concepts."""
+        if not self.concepts:
+            return "No course content available. Please check the content file."
         
-        Call this at the end of each check-in conversation.
-        """
-        # Ensure the log file exists
-        log_file = Path(WELLNESS_LOG_FILE)
+        concept_list = []
+        for concept in self.concepts:
+            concept_list.append(f"• {concept.get('title')} ({concept.get('id')})")
         
-        # Load existing data or create empty list
-        if log_file.exists():
-            try:
-                with open(log_file, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-            except json.JSONDecodeError:
-                data = []
-        else:
-            data = []
+        return "Available concepts:\n" + "\n".join(concept_list)
+
+    @function_tool()
+    async def switch_mode(self, context: RunContext, new_mode: str) -> str:
+        """Switch between learning modes: learn, quiz, or teach_back."""
+        valid_modes = ["learn", "quiz", "teach_back"]
+        if new_mode.lower() not in valid_modes:
+            return f"Invalid mode. Please choose from: {', '.join(valid_modes)}"
         
-        # Create new entry
-        new_entry = {
-            "date": datetime.datetime.now().isoformat(),
-            "mood": mood,
-            "energy_level": energy_level,
-            "objectives": objectives,
-            "summary": summary
+        old_mode = self.current_mode
+        self.current_mode = new_mode.lower()
+        
+        mode_descriptions = {
+            "learn": "Learn mode - I'll explain concepts (Voice: Matthew)",
+            "quiz": "Quiz mode - I'll ask you questions (Voice: Alicia)", 
+            "teach_back": "Teach-back mode - You explain concepts to me (Voice: Ken)"
         }
         
-        # Add to data and save
-        data.append(new_entry)
-        
-        with open(log_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
-        
-        return f"Check-in saved successfully. You now have {len(data)} entries in your wellness log."
+        return f"Switched to {mode_descriptions[self.current_mode]}"
 
     @function_tool()
-    async def load_previous_checkins(self, context: RunContext, days_back: int = 7) -> str:
-        """
-        Load previous wellness check-ins from the JSON file.
+    async def explain_concept(self, context: RunContext, concept_name: str = None) -> str:
+        """Explain a concept in learn mode."""
+        if not self.concepts:
+            return "No concepts available to explain."
         
-        Use this to reference past conversations and provide continuity.
-        """
-        log_file = Path(WELLNESS_LOG_FILE)
+        concept = None
+        if concept_name:
+            # Find concept by ID or title
+            for c in self.concepts:
+                if c.get('id') == concept_name.lower() or c.get('title').lower() == concept_name.lower():
+                    concept = c
+                    break
         
-        if not log_file.exists():
-            return "No previous check-ins found. This appears to be your first session!"
+        if not concept:
+            # Use first concept as default
+            concept = self.concepts[0]
         
-        try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        except json.JSONDecodeError:
-            return "Error reading wellness log. Starting fresh for today."
-        
-        if not data:
-            return "No previous check-ins found in the log."
-        
-        # Get recent entries (last N days)
-        recent_entries = []
-        cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days_back)
-        
-        for entry in data[-10:]:  # Check last 10 entries max
-            try:
-                entry_date = datetime.datetime.fromisoformat(entry["date"])
-                if entry_date >= cutoff_date:
-                    recent_entries.append(entry)
-            except (KeyError, ValueError):
-                continue
-        
-        if not recent_entries:
-            return f"No check-ins found from the last {days_back} days."
-        
-        # Format the response
-        response = f"Found {len(recent_entries)} check-in(s) from the last {days_back} days:\n\n"
-        
-        for i, entry in enumerate(recent_entries[-3:], 1):  # Show last 3 entries
-            entry_date = datetime.datetime.fromisoformat(entry["date"]).strftime("%b %d")
-            response += f"• {entry_date}: Mood: {entry.get('mood', 'N/A')}, Energy: {entry.get('energy_level', 'N/A')}\n"
-            if entry.get('objectives'):
-                response += f"  Objectives: {', '.join(entry['objectives'][:2])}\n"
-        
-        return response
+        return f"Let me explain {concept.get('title')}:\n\n{concept.get('summary')}"
 
     @function_tool()
-    async def get_weekly_insights(self, context: RunContext) -> str:
-        """
-        Provide basic insights from the past week's check-ins.
+    async def quiz_concept(self, context: RunContext, concept_name: str = None) -> str:
+        """Quiz a concept in quiz mode."""
+        if not self.concepts:
+            return "No concepts available for quiz."
         
-        Use this when the user asks about trends or patterns.
-        """
-        log_file = Path(WELLNESS_LOG_FILE)
+        concept = None
+        if concept_name:
+            for c in self.concepts:
+                if c.get('id') == concept_name.lower() or c.get('title').lower() == concept_name.lower():
+                    concept = c
+                    break
         
-        if not log_file.exists():
-            return "Not enough data yet for weekly insights. Check back after a few days!"
+        if not concept:
+            concept = self.concepts[0]
         
-        try:
-            with open(log_file, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        except json.JSONDecodeError:
-            return "Could not read wellness data for insights."
+        return f"Quiz question about {concept.get('title')}:\n\n{concept.get('sample_question')}"
+
+    @function_tool()
+    async def teach_back_concept(self, context: RunContext, concept_name: str = None) -> str:
+        """Ask user to explain a concept back in teach-back mode."""
+        if not self.concepts:
+            return "No concepts available for teach-back."
         
-        if len(data) < 2:
-            return "Need more check-in data to provide insights. Keep going!"
+        concept = None
+        if concept_name:
+            for c in self.concepts:
+                if c.get('id') == concept_name.lower() or c.get('title').lower() == concept_name.lower():
+                    concept = c
+                    break
         
-        # Analyze last 7 days
-        week_ago = datetime.datetime.now() - datetime.timedelta(days=7)
-        recent_data = []
+        if not concept:
+            concept = self.concepts[0]
         
-        for entry in data:
-            try:
-                entry_date = datetime.datetime.fromisoformat(entry["date"])
-                if entry_date >= week_ago:
-                    recent_data.append(entry)
-            except (KeyError, ValueError):
-                continue
-        
-        if len(recent_data) < 2:
-            return "Not enough recent data for weekly insights."
-        
-        # Simple analysis
-        mood_counts = {}
-        energy_counts = {}
-        objectives_count = 0
-        days_with_objectives = 0
-        
-        for entry in recent_data:
-            mood = entry.get('mood', '').lower()
-            energy = entry.get('energy_level', '').lower()
-            objectives = entry.get('objectives', [])
-            
-            if mood:
-                mood_counts[mood] = mood_counts.get(mood, 0) + 1
-            if energy:
-                energy_counts[energy] = energy_counts.get(energy, 0) + 1
-            
-            if objectives:
-                objectives_count += len(objectives)
-                days_with_objectives += 1
-        
-        # Build insights
-        insights = []
-        
-        if mood_counts:
-            common_mood = max(mood_counts.items(), key=lambda x: x[1])
-            insights.append(f"Your most common mood this week was '{common_mood[0]}'")
-        
-        if energy_counts:
-            common_energy = max(energy_counts.items(), key=lambda x: x[1])
-            insights.append(f"You typically felt '{common_energy[0]}' energy levels")
-        
-        if days_with_objectives > 0:
-            avg_objectives = objectives_count / days_with_objectives
-            insights.append(f"You set about {avg_objectives:.1f} goals per day on average")
-        
-        if not insights:
-            return "I notice you've been consistent with your check-ins. That's great for building awareness!"
-        
-        return "Here's what I noticed from your recent check-ins:\n" + "\n".join(f"• {insight}" for insight in insights)
+        return f"Now it's your turn to teach me about {concept.get('title')}! Please explain this concept in your own words."
 
 
 def prewarm(proc: JobProcess):
@@ -242,19 +172,18 @@ def prewarm(proc: JobProcess):
 
 
 async def entrypoint(ctx: JobContext):
-    # Logging setup
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
 
-    # Initialize wellness companion session
+    # Initialize the agent
+    agent = ActiveRecallCoach()
+    
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
-        llm=google.LLM(
-            model="gemini-2.5-flash",
-        ),
+        llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-matthew", 
+            voice="en-US-matthew",
             style="Conversation",
             tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
             text_pacing=True
@@ -263,7 +192,6 @@ async def entrypoint(ctx: JobContext):
         vad=ctx.proc.userdata["vad"],
         preemptive_generation=True,
     )
-    session.userdata = {}
 
     # Metrics collection
     usage_collector = metrics.UsageCollector()
@@ -279,16 +207,15 @@ async def entrypoint(ctx: JobContext):
 
     ctx.add_shutdown_callback(log_usage)
 
-    # Start the wellness companion session
+    # Start the session
     await session.start(
-        agent=WellnessCompanion(),
+        agent=agent,
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC(),
         ),
     )
 
-    # Join the room and connect to the user
     await ctx.connect()
 
 
