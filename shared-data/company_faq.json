@@ -1,0 +1,38 @@
+{
+  "company_name": "ZapScale",
+  "description": "ZapScale is a fast-growing Indian SaaS startup that provides AI-powered customer success and revenue intelligence platforms for B2B companies.",
+  "faq": [
+    {
+      "question": "What does ZapScale do?",
+      "answer": "ZapScale helps B2B companies reduce churn and increase revenue through AI-driven customer success automation. Our platform provides real-time health scores, automated playbooks, and revenue intelligence to help you retain and grow your customer base."
+    },
+    {
+      "question": "Who is ZapScale for?",
+      "answer": "ZapScale is designed for B2B SaaS companies, customer success teams, account managers, and revenue operations professionals who want to proactively manage customer relationships and reduce churn."
+    },
+    {
+      "question": "Do you have a free tier?",
+      "answer": "Yes, we offer a free Starter plan for small teams with up to 100 customers. It includes basic health scoring and email alerts. For more advanced features like automated playbooks and revenue intelligence, we have paid plans starting at $99/month."
+    },
+    {
+      "question": "What are your pricing plans?",
+      "answer": "We have three main plans: Starter (free for up to 100 customers), Growth ($99/month with advanced features), and Enterprise (custom pricing with full platform access and dedicated support). All plans include core customer success features with varying levels of automation and analytics."
+    },
+    {
+      "question": "How does the AI feature work?",
+      "answer": "Our AI analyzes customer usage patterns, support interactions, and business data to predict churn risk, identify expansion opportunities, and recommend personalized engagement strategies for each customer."
+    },
+    {
+      "question": "What integrations do you support?",
+      "answer": "ZapScale integrates with popular tools like Salesforce, HubSpot, Slack, Intercom, Stripe, and most CRMs through our REST API. We're constantly adding new integrations based on customer feedback."
+    },
+    {
+      "question": "Can I try before I buy?",
+      "answer": "Absolutely! We offer a 14-day free trial of our Growth plan with full feature access. No credit card required to start the trial."
+    },
+    {
+      "question": "Do you offer support?",
+      "answer": "Yes, we provide email support for all plans, with priority support for Growth customers and dedicated account management for Enterprise customers. We also have comprehensive documentation and community forums."
+    }
+  ]
+}
