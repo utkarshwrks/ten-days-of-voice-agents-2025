@@ -1,0 +1,137 @@
+{
+  "items": [
+    {
+      "id": "g1",
+      "name": "Whole Wheat Bread",
+      "price": 3.99,
+      "category": "Groceries",
+      "brand": "FreshBake",
+      "size": "1 loaf",
+      "tags": ["vegan", "whole grain", "bread"]
+    },
+    {
+      "id": "g2",
+      "name": "Organic Eggs",
+      "price": 5.49,
+      "category": "Groceries",
+      "brand": "Happy Hens",
+      "size": "12 count",
+      "tags": ["organic", "protein", "breakfast"]
+    },
+    {
+      "id": "g3",
+      "name": "Whole Milk",
+      "price": 4.29,
+      "category": "Groceries",
+      "brand": "DairyPure",
+      "size": "1 gallon",
+      "tags": ["dairy", "calcium", "beverage"]
+    },
+    {
+      "id": "g4",
+      "name": "Peanut Butter",
+      "price": 4.99,
+      "category": "Groceries",
+      "brand": "Nutty Co",
+      "size": "16 oz",
+      "tags": ["vegan", "protein", "spread"]
+    },
+    {
+      "id": "g5",
+      "name": "Pasta",
+      "price": 2.49,
+      "category": "Groceries",
+      "brand": "PastaPrime",
+      "size": "1 lb",
+      "tags": ["vegan", "pantry", "pasta"]
+    },
+    {
+      "id": "g6",
+      "name": "Pasta Sauce",
+      "price": 3.99,
+      "category": "Groceries",
+      "brand": "TomatoGarden",
+      "size": "24 oz",
+      "tags": ["vegan", "sauce", "pasta"]
+    },
+    {
+      "id": "g7",
+      "name": "Bananas",
+      "price": 1.99,
+      "category": "Groceries",
+      "brand": "FreshFruit",
+      "size": "1 lb",
+      "tags": ["vegan", "fruit", "healthy"]
+    },
+    {
+      "id": "s1",
+      "name": "Potato Chips",
+      "price": 2.99,
+      "category": "Snacks",
+      "brand": "Crunchy",
+      "size": "8 oz",
+      "tags": ["vegan", "salty", "snack"]
+    },
+    {
+      "id": "s2",
+      "name": "Chocolate Bar",
+      "price": 1.99,
+      "category": "Snacks",
+      "brand": "SweetTreat",
+      "size": "3.5 oz",
+      "tags": ["sweet", "dessert", "snack"]
+    },
+    {
+      "id": "s3",
+      "name": "Granola Bars",
+      "price": 4.49,
+      "category": "Snacks",
+      "brand": "NatureFuel",
+      "size": "6 count",
+      "tags": ["vegan", "healthy", "snack"]
+    },
+    {
+      "id": "p1",
+      "name": "Pepperoni Pizza",
+      "price": 12.99,
+      "category": "Prepared Food",
+      "brand": "QuickBite",
+      "size": "12 inch",
+      "tags": ["ready-to-eat", "hot", "pizza"]
+    },
+    {
+      "id": "p2",
+      "name": "Chicken Sandwich",
+      "price": 8.99,
+      "category": "Prepared Food",
+      "brand": "FreshGrill",
+      "size": "1 sandwich",
+      "tags": ["protein", "hot", "sandwich"]
+    },
+    {
+      "id": "p3",
+      "name": "Caesar Salad",
+      "price": 7.49,
+      "category": "Prepared Food",
+      "brand": "GreenLeaf",
+      "size": "regular",
+      "tags": ["vegetarian", "cold", "salad"]
+    },
+    {
+      "id": "p4",
+      "name": "Vegetable Stir Fry",
+      "price": 9.99,
+      "category": "Prepared Food",
+      "brand": "AsianFlavor",
+      "size": "regular",
+      "tags": ["vegan", "hot", "healthy"]
+    }
+  ],
+  "recipes": {
+    "peanut butter sandwich": ["Whole Wheat Bread", "Peanut Butter"],
+    "pasta dinner": ["Pasta", "Pasta Sauce"],
+    "breakfast": ["Whole Wheat Bread", "Organic Eggs", "Whole Milk"],
+    "fruit snack": ["Bananas"],
+    "quick lunch": ["Chicken Sandwich", "Potato Chips"]
+  }
+}
