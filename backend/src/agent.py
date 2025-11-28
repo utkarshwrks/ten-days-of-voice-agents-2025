@@ -1,6 +1,6 @@
 import logging
 import json
-import os
+import random
 from typing import Dict, Any, List
 from pathlib import Path
 from datetime import datetime
@@ -23,304 +23,213 @@ from livekit.agents import (
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
-logger = logging.getLogger("food-ordering-agent")
+logger = logging.getLogger("game-master-agent")
 
 load_dotenv(".env.local")
 
-# Food ordering files - using relative path to shared-data
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-CATALOG_FILE = PROJECT_ROOT / "shared-data" / "food_catalog.json"
-ORDERS_FILE = PROJECT_ROOT / "shared-data" / "orders.json"
-
-class FoodOrderingAgent(Agent):
+class GameMasterAgent(Agent):
     def __init__(self) -> None:
         super().__init__(
             instructions="""
-You are a friendly and helpful food & grocery ordering assistant for QuickCart. Your role is to help users order food and groceries from our catalog.
+You are a dramatic and immersive Game Master running a fantasy adventure in the world of Eldoria, a land of ancient magic, dragons, and forgotten kingdoms.
 
 IMPORTANT RULES:
-- Be warm, friendly, and helpful in all interactions
-- Always confirm when items are added to or removed from the cart
-- When users ask for "ingredients for X", intelligently map to relevant items
-- Keep track of the cart and be able to list contents when asked
-- Help users complete their order efficiently
+- Maintain a dramatic, engaging tone throughout the adventure
+- Describe scenes vividly with sensory details (sights, sounds, smells)
+- Always end your descriptions with a prompt for player action ("What do you do?", "How do you proceed?", "What's your next move?")
+- Remember the player's past decisions and incorporate them into the story
+- Create consequences for player choices
+- Keep the story moving forward with appropriate challenges and discoveries
 
-CALL FLOW:
-1. Greet the user warmly and introduce yourself as QuickCart assistant
-2. Explain what you can help with (ordering groceries, snacks, prepared food, or ingredients for meals)
-3. Help users add items to cart, either specifically or through recipe requests
-4. Handle cart management (add, remove, update quantities, list contents)
-5. When user indicates they're done, confirm the final order and place it
+CURRENT ADVENTURE: "The Crystal of Aethel"
+- The player is a novice adventurer in the village of Oakhaven
+- They've been tasked with investigating strange occurrences in the Whispering Woods
+- Rumors speak of an ancient artifact - the Crystal of Aethel - hidden in the woods
 
-SPECIAL BEHAVIORS:
-- For "ingredients for X" requests: Map to appropriate items and add them to cart
-- Always confirm additions/removals clearly
-- Be proactive in suggesting quantities or alternatives if items are unavailable
-- Maintain a running total when discussing the cart
+GAME MASTER GUIDELINES:
+1. Start by setting the scene in Oakhaven village at dawn
+2. Introduce the quest from Elder Malakai
+3. Guide the player through the Whispering Woods with encounters and choices
+4. Include at least 3 key encounters before reaching the crystal
+5. Create a meaningful climax and resolution
+6. Always maintain continuity - remember NPCs, items, and decisions
+
+STORY BEATS:
+- Village introduction and quest assignment
+- Forest entrance and first encounter
+- Ancient ruins puzzle
+- Guardian confrontation
+- Crystal discovery and choice
+
+Remember: You are the eyes and ears of the player. Describe everything they experience!
 """
         )
-        self.catalog = self._load_catalog()
-        self.cart: List[Dict[str, Any]] = []
-        self.current_order = None
+        self.world_state = self._initialize_world_state()
+        self.game_active = True
 
-    def _load_catalog(self) -> Dict[str, Any]:
-        """Load food catalog from JSON file"""
-        try:
-            if CATALOG_FILE.exists():
-                with open(CATALOG_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                logger.info(f"Successfully loaded food catalog with {len(data.get('items', []))} items")
-                return data
-            else:
-                logger.error(f"Catalog file not found: {CATALOG_FILE}")
-                # Create default structure if file doesn't exist
-                default_data = {"items": [], "recipes": {}}
-                with open(CATALOG_FILE, 'w', encoding='utf-8') as f:
-                    json.dump(default_data, f, indent=2)
-                return default_data
-        except Exception as e:
-            logger.error(f"Error loading catalog: {e}")
-            return {"items": [], "recipes": {}}
-
-    def _find_item(self, item_name: str) -> Dict[str, Any]:
-        """Find an item by name in the catalog"""
-        item_name_lower = item_name.lower()
-        for item in self.catalog.get("items", []):
-            if item_name_lower in item.get("name", "").lower():
-                return item
-        return None
-
-    def _get_recipe_items(self, recipe_name: str) -> List[Dict[str, Any]]:
-        """Get items for a recipe"""
-        recipe_name_lower = recipe_name.lower()
-        recipes = self.catalog.get("recipes", {})
-        
-        # Try exact match first
-        if recipe_name_lower in recipes:
-            item_names = recipes[recipe_name_lower]
-        else:
-            # Try partial match
-            for recipe_key in recipes.keys():
-                if recipe_name_lower in recipe_key:
-                    item_names = recipes[recipe_key]
-                    break
-            else:
-                return []
-        
-        items = []
-        for item_name in item_names:
-            item = self._find_item(item_name)
-            if item:
-                items.append(item)
-        return items
-
-    def _calculate_total(self) -> float:
-        """Calculate total cost of cart"""
-        return sum(item['price'] * item['quantity'] for item in self.cart)
-
-    def _save_order(self, customer_name: str = "Customer", customer_address: str = "Not specified"):
-        """Save order to JSON file"""
-        try:
-            # Load existing orders
-            orders = []
-            if ORDERS_FILE.exists():
-                with open(ORDERS_FILE, 'r', encoding='utf-8') as f:
-                    orders = json.load(f)
-            
-            # Create new order
-            order_id = f"QC{datetime.now().strftime('%Y%m%d%H%M%S')}"
-            total = self._calculate_total()
-            
-            new_order = {
-                "order_id": order_id,
-                "timestamp": datetime.now().isoformat(),
-                "items": self.cart.copy(),
-                "total": total,
-                "customer_name": customer_name,
-                "customer_address": customer_address,
-                "status": "received"
-            }
-            
-            orders.append(new_order)
-            
-            # Save orders
-            with open(ORDERS_FILE, 'w', encoding='utf-8') as f:
-                json.dump(orders, f, indent=2, ensure_ascii=False)
-            
-            self.current_order = new_order
-            logger.info(f"Order {order_id} saved successfully")
-            return order_id
-            
-        except Exception as e:
-            logger.error(f"Error saving order: {e}")
-            return None
-
-    @function_tool()
-    async def add_item_to_cart(self, context: RunContext, item_name: str, quantity: int = 1) -> str:
-        """Add a specific item to the shopping cart"""
-        item = self._find_item(item_name)
-        if not item:
-            return f"I'm sorry, I couldn't find '{item_name}' in our catalog. Could you try a different name or check our available items?"
-        
-        # Check if item already in cart
-        for cart_item in self.cart:
-            if cart_item['id'] == item["id"]:
-                cart_item['quantity'] += quantity
-                return f"Updated quantity of {item['name']} to {cart_item['quantity']} in your cart."
-        
-        # Add new item to cart
-        cart_item = {
-            'id': item['id'],
-            'name': item['name'],
-            'quantity': quantity,
-            'price': item['price'],
-            'category': item['category']
-        }
-        self.cart.append(cart_item)
-        
-        return f"Added {quantity} {item['name']} to your cart at ${item['price']:.2f} each."
-
-    @function_tool()
-    async def add_recipe_ingredients(self, context: RunContext, recipe_name: str, servings: int = 2) -> str:
-        """Add ingredients for a recipe to the cart"""
-        items = self._get_recipe_items(recipe_name)
-        if not items:
-            return f"I'm sorry, I don't have a recipe for '{recipe_name}' in my system. You can ask for specific items instead."
-        
-        added_items = []
-        for item in items:
-            # For recipes, adjust quantity based on servings
-            adjusted_quantity = 1 if servings <= 2 else 2
-            
-            # Check if item already in cart
-            found = False
-            for cart_item in self.cart:
-                if cart_item['id'] == item["id"]:
-                    cart_item['quantity'] += adjusted_quantity
-                    added_items.append(f"{item['name']} (quantity updated)")
-                    found = True
-                    break
-            
-            if not found:
-                cart_item = {
-                    'id': item['id'],
-                    'name': item['name'],
-                    'quantity': adjusted_quantity,
-                    'price': item['price'],
-                    'category': item['category']
+    def _initialize_world_state(self) -> Dict[str, Any]:
+        """Initialize the game world state"""
+        return {
+            "player": {
+                "name": "Adventurer",
+                "health": 100,
+                "max_health": 100,
+                "inventory": ["torch", "provisions", "map"],
+                "gold": 10,
+                "location": "oakhaven_village",
+                "reputation": 0
+            },
+            "npcs": {
+                "elder_malakai": {
+                    "name": "Elder Malakai",
+                    "location": "oakhaven_village",
+                    "attitude": "friendly",
+                    "quest_given": False
+                },
+                "forest_guardian": {
+                    "name": "Ancient Guardian",
+                    "location": "ancient_ruins",
+                    "attitude": "neutral",
+                    "encountered": False
                 }
-                self.cart.append(cart_item)
-                added_items.append(item["name"])
+            },
+            "locations": {
+                "oakhaven_village": {
+                    "name": "Oakhaven Village",
+                    "description": "A quiet village at the edge of Whispering Woods",
+                    "visited": False
+                },
+                "whispering_woods": {
+                    "name": "Whispering Woods",
+                    "description": "A mysterious forest where trees seem to whisper secrets",
+                    "visited": False
+                },
+                "ancient_ruins": {
+                    "name": "Ancient Ruins",
+                    "description": "Crumbling stone structures from a forgotten civilization",
+                    "visited": False
+                }
+            },
+            "quests": {
+                "find_crystal": {
+                    "name": "Find the Crystal of Aethel",
+                    "status": "active",  # active, completed, failed
+                    "description": "Investigate strange occurrences in Whispering Woods and find the legendary crystal"
+                }
+            },
+            "events": {
+                "elder_met": False,
+                "forest_entered": False,
+                "ruins_discovered": False,
+                "crystal_found": False
+            },
+            "game_state": {
+                "turn_count": 0,
+                "current_chapter": 1
+            }
+        }
+
+    def _dice_roll(self, sides: int = 20, modifier: int = 0) -> int:
+        """Make a dice roll for game mechanics"""
+        return random.randint(1, sides) + modifier
+
+    def _update_location(self, new_location: str):
+        """Update player location and trigger location-based events"""
+        old_location = self.world_state["player"]["location"]
+        self.world_state["player"]["location"] = new_location
         
-        item_list = ", ".join(added_items)
-        return f"I've added the ingredients for {recipe_name} to your cart: {item_list}. Feel free to adjust quantities if needed."
+        # Mark location as visited
+        if new_location in self.world_state["locations"]:
+            self.world_state["locations"][new_location]["visited"] = True
+        
+        # Trigger location-specific events
+        if new_location == "whispering_woods" and not self.world_state["events"]["forest_entered"]:
+            self.world_state["events"]["forest_entered"] = True
+        elif new_location == "ancient_ruins" and not self.world_state["events"]["ruins_discovered"]:
+            self.world_state["events"]["ruins_discovered"] = True
 
     @function_tool()
-    async def remove_item_from_cart(self, context: RunContext, item_name: str) -> str:
-        """Remove an item from the shopping cart"""
-        item_name_lower = item_name.lower()
-        for i, cart_item in enumerate(self.cart):
-            if item_name_lower in cart_item['name'].lower():
-                removed_item = self.cart.pop(i)
-                return f"Removed {removed_item['name']} from your cart."
-        
-        return f"I couldn't find '{item_name}' in your cart. Here's what's currently in your cart: {await self.list_cart_contents(context)}"
+    async def roll_dice(self, context: RunContext, sides: int = 20, modifier: int = 0) -> str:
+        """Roll dice for game mechanics - used by the GM for skill checks"""
+        roll = self._dice_roll(sides, modifier)
+        return f"Dice roll: {roll} (d{sides} + {modifier})"
 
     @function_tool()
-    async def update_item_quantity(self, context: RunContext, item_name: str, new_quantity: int) -> str:
-        """Update the quantity of an item in the cart"""
-        item_name_lower = item_name.lower()
-        for cart_item in self.cart:
-            if item_name_lower in cart_item['name'].lower():
-                if new_quantity <= 0:
-                    return await self.remove_item_from_cart(context, item_name)
-                
-                cart_item['quantity'] = new_quantity
-                return f"Updated quantity of {cart_item['name']} to {new_quantity}."
+    async def check_inventory(self, context: RunContext) -> str:
+        """Check the player's current inventory and status"""
+        player = self.world_state["player"]
+        inventory_list = ", ".join(player["inventory"]) if player["inventory"] else "Empty"
         
-        return f"I couldn't find '{item_name}' in your cart. Would you like to add it instead?"
+        return f"Health: {player['health']}/{player['max_health']} | Gold: {player['gold']} | Inventory: {inventory_list}"
 
     @function_tool()
-    async def list_cart_contents(self, context: RunContext) -> str:
-        """List all items currently in the shopping cart"""
-        if not self.cart:
-            return "Your cart is currently empty. Would you like to add some items?"
-        
-        cart_list = []
-        total = 0
-        for item in self.cart:
-            item_total = item['price'] * item['quantity']
-            total += item_total
-            cart_list.append(f"{item['quantity']} x {item['name']} - ${item_total:.2f}")
-        
-        cart_summary = "\n".join(cart_list)
-        return f"Here's what's in your cart:\n{cart_summary}\n\nTotal: ${total:.2f}"
+    async def add_to_inventory(self, context: RunContext, item: str) -> str:
+        """Add an item to player's inventory"""
+        self.world_state["player"]["inventory"].append(item)
+        return f"Added {item} to inventory. {await self.check_inventory(context)}"
 
     @function_tool()
-    async def place_order(self, context: RunContext, customer_name: str = "Customer", customer_address: str = "Not specified") -> str:
-        """Place the final order and save it to the system"""
-        if not self.cart:
-            return "Your cart is empty. Please add some items before placing an order."
-        
-        # Confirm final cart
-        cart_summary = await self.list_cart_contents(context)
-        total = self._calculate_total()
-        
-        # Save order
-        order_id = self._save_order(customer_name, customer_address)
-        
-        if order_id:
-            # Clear cart after successful order
-            self.cart.clear()
-            return f"Thank you for your order, {customer_name}! Your order #{order_id} has been placed successfully.\n\n{cart_summary}\n\nYour order will be delivered to: {customer_address}\n\nWe'll send you a confirmation shortly. Thank you for choosing QuickCart!"
-        else:
-            return "I'm sorry, there was an issue placing your order. Please try again in a moment."
+    async def remove_from_inventory(self, context: RunContext, item: str) -> str:
+        """Remove an item from player's inventory"""
+        if item in self.world_state["player"]["inventory"]:
+            self.world_state["player"]["inventory"].remove(item)
+            return f"Removed {item} from inventory. {await self.check_inventory(context)}"
+        return f"{item} not found in inventory."
 
     @function_tool()
-    async def search_items(self, context: RunContext, search_term: str) -> str:
-        """Search for items in the catalog"""
-        search_term_lower = search_term.lower()
-        matches = []
+    async def update_health(self, context: RunContext, change: int) -> str:
+        """Update player's health (positive or negative)"""
+        self.world_state["player"]["health"] = max(0, min(
+            self.world_state["player"]["health"] + change,
+            self.world_state["player"]["max_health"]
+        ))
         
-        for item in self.catalog.get("items", []):
-            if (search_term_lower in item.get("name", "").lower() or 
-                search_term_lower in item.get("category", "").lower() or
-                any(search_term_lower in tag.lower() for tag in item.get("tags", []))):
-                matches.append(f"{item['name']} - ${item['price']:.2f} ({item['category']})")
+        status = "gained" if change > 0 else "lost"
+        current_health = self.world_state["player"]["health"]
         
-        if not matches:
-            return f"No items found matching '{search_term}'. Try browsing by category or ask me what's available."
+        if current_health <= 0:
+            self.game_active = False
+            return f"You have {status} {abs(change)} health. Current health: 0/100. You have been defeated!"
         
-        matches_list = "\n".join(matches[:8])  # Limit to 8 results
-        return f"Here are items matching '{search_term}':\n{matches_list}\n\nYou can ask me to add any of these to your cart."
+        return f"You have {status} {abs(change)} health. Current health: {current_health}/100."
 
     @function_tool()
-    async def clear_cart(self, context: RunContext) -> str:
-        """Clear all items from the shopping cart"""
-        item_count = len(self.cart)
-        self.cart.clear()
-        return f"Your cart has been cleared. Removed {item_count} items."
-
-    @function_tool()
-    async def get_available_categories(self, context: RunContext) -> str:
-        """Get all available food categories"""
-        categories = set()
-        for item in self.catalog.get("items", []):
-            categories.add(item.get('category', 'Unknown'))
+    async def move_to_location(self, context: RunContext, location: str) -> str:
+        """Move player to a new location"""
+        valid_locations = list(self.world_state["locations"].keys())
+        if location not in valid_locations:
+            return f"Unknown location. Valid locations: {', '.join(valid_locations)}"
         
-        if categories:
-            return f"We have items in these categories: {', '.join(sorted(categories))}. You can ask me to show you items from any category."
-        else:
-            return "I don't have any categories available at the moment."
+        self._update_location(location)
+        loc_data = self.world_state["locations"][location]
+        return f"You have moved to {loc_data['name']}. {loc_data['description']}"
 
     @function_tool()
-    async def get_available_recipes(self, context: RunContext) -> str:
-        """Get all available recipes"""
-        recipes = list(self.catalog.get("recipes", {}).keys())
-        if recipes:
-            return f"I can help you with these recipes: {', '.join(recipes)}. Just ask for 'ingredients for [recipe name]'."
-        else:
-            return "I don't have any pre-defined recipes at the moment, but you can ask for specific items."
+    async def complete_quest(self, context: RunContext, quest_name: str) -> str:
+        """Mark a quest as completed"""
+        if quest_name in self.world_state["quests"]:
+            self.world_state["quests"][quest_name]["status"] = "completed"
+            self.world_state["player"]["reputation"] += 10
+            return f"Quest '{quest_name}' completed! Your reputation has increased."
+        return f"Quest '{quest_name}' not found."
+
+    @function_tool()
+    async def get_world_state(self, context: RunContext) -> str:
+        """Get current world state summary (for GM context)"""
+        player = self.world_state["player"]
+        current_loc = self.world_state["locations"][player["location"]]
+        
+        active_quests = [q for q in self.world_state["quests"].values() if q["status"] == "active"]
+        quest_status = active_quests[0]["name"] if active_quests else "No active quests"
+        
+        return f"Location: {current_loc['name']} | Health: {player['health']}/100 | Active Quest: {quest_status} | Turn: {self.world_state['game_state']['turn_count']}"
+
+    @function_tool()
+    async def restart_game(self, context: RunContext) -> str:
+        """Restart the game with fresh world state"""
+        self.world_state = self._initialize_world_state()
+        self.game_active = True
+        return "Game has been restarted. You find yourself at the beginning of your adventure in Oakhaven Village."
 
 
 def prewarm(proc: JobProcess):
@@ -332,8 +241,8 @@ async def entrypoint(ctx: JobContext):
         "room": ctx.room.name,
     }
 
-    # Initialize the food ordering agent
-    agent = FoodOrderingAgent()
+    # Initialize the game master agent
+    agent = GameMasterAgent()
     
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
